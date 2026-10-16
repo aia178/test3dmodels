@@ -95,7 +95,9 @@ def main() -> None:
            "cam2world": np.stack(poses).astype(np.float64), "intrinsics": np.stack(intr).astype(np.float64), "image_hw": np.array(sizes),
            "valid_bits": np.concatenate(masks), "view_images": np.stack(imgs),
            "meta": {"model": "facebook/map-anything-apache", "n_views": len(idx), "sec_inference": sec, "input_mode": mode,
-                    "metric_scaling_factor": None if msf is None else float(np.asarray(msf.float().cpu()).ravel()[0])}}
+                    "metric_scaling_factor": None if msf is None else float(np.asarray(msf.float().cpu()).ravel()[0]),
+                    # 質の判定（worker.capture_quality）が、AR の位置を使った区間の動きの大きさを見る
+                    "pose_check": None if chk is None else {k: v for k, v in chk.items() if k not in ("pairs", "use_pose", "frame_ids", "segments")}}}
     save_raw(raw, out / "raw.npz")
 
     # 渡した位置と、出力の位置がどれだけ一致したか（モデルが入力に従ったかの確認）

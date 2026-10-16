@@ -113,6 +113,9 @@ def capture_quality(raw: dict) -> dict:
 
     同じ場所を 2 枚以上の写真が見ているとき、それぞれの写真から出した 3D の位置は一致するはず。
     その食い違いが大きい復元は、実測との差も大きかった。これは誤差そのものではなく、撮り直しを勧めるかどうかの目安。
+
+    スマホの AR の位置を使った復元では、raw["meta"]["pose_check"]（roomfit.ar_check の判定）も見る。位置を使った区間で
+    カメラがあまり動いていないと、形はそろっても大きさの手がかりが弱い（10:35 の記録で −8.5%、docs/検証記録.md §19）ので "ar_scale" を付ける。
     """
     from scipy.spatial import cKDTree
 
@@ -131,11 +134,11 @@ def capture_quality(raw: dict) -> dict:
         share.append(float(near.mean()))
         if near.sum() > 300:
             med.append(float(np.median(d[near])))
-    fx = raw["intrinsics"][:, 0, 0]
+    fx = raw["intrinsics"][:, 0, 0] if "intrinsics" in raw else None   # AR の深度を重ねた取り込み（load_capture）には無い
     q = {
         "disagreement_mm": round(float(np.mean(med)) * 1000, 1) if med else None,
         "overlap": round(float(np.mean(share)), 3) if share else 0.0,
-        "focal_ratio": round(float(fx.max() / fx.min()), 3),
+        "focal_ratio": round(float(fx.max() / fx.min()), 3) if fx is not None else None,
         "n_photos": int(n),
     }
     reasons = []
@@ -143,8 +146,13 @@ def capture_quality(raw: dict) -> dict:
         reasons.append("disagreement")
     if q["overlap"] < Q_OVERLAP:
         reasons.append("overlap")
-    if q["focal_ratio"] > Q_FOCAL_RATIO:
+    if q["focal_ratio"] is not None and q["focal_ratio"] > Q_FOCAL_RATIO:
         reasons.append("focal")
+    pc = raw.get("meta", {}).get("pose_check")
+    if pc:
+        q["ar"] = {k: pc.get(k) for k in ("status", "extent_m", "scale_cue", "pairs_judged", "pairs_bad")}
+        if pc.get("scale_cue") == "weak":
+            reasons.append("ar_scale")
     ch = raw.get("meta", {}).get("chunks")
     if ch:  # 範囲に分けて復元してつないだ場合: つなぎ目の合い方も見る
         from .stitch import LINK_SIZE_GAP_WARN_PCT, LINK_WARN_MM

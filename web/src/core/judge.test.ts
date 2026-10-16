@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Furniture, Layout, Room } from './types';
-import { judgeLayout, roomTolerance } from './judge';
+import { judgeLayout, qualityReason, roomTolerance } from './judge';
 import { convexRelation, convexVsOutline, footprint, frontNormal, rotY, signedArea, v } from './geom';
 import { buildPassageGrid, widestPath } from './passage';
 import { fmtCm, parseCm } from './units';
@@ -215,5 +215,13 @@ describe('幾何の基礎', () => {
   it('輪郭の内側にあるときの隙間', () => {
     const r = convexVsOutline([v(0.2, 0.2), v(1, 0.2), v(1, 1), v(0.2, 1)], room().outline);
     expect(r.outside).toBe(0); expect(r.gap).toBeCloseTo(0.2);
+  });
+});
+
+describe('qualityReason', () => {
+  it('AR の動きが小さいときは、大きさの手がかりが弱いことを伝える', () => {
+    const s = qualityReason(['ar_scale']);
+    expect(s).toContain('大きさの手がかりが弱い');
+    expect(qualityReason(['overlap'])).not.toContain('AR');
   });
 });

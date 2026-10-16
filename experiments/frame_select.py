@@ -29,6 +29,8 @@ from PIL import Image
 here = Path(__file__).resolve().parent
 sys.path.insert(0, str(here.parent / "server"))
 sys.path.insert(0, str(here))
+from roomfit.frame_select import chain, fit_count  # noqa: E402,F401  （選び方の本体はサーバー側。製品と同じものを比べる）
+from roomfit.frame_select import overlap_matrix as _overlap  # noqa: E402
 
 N = 16
 ASSUMED_DEPTH_M = 2.0
@@ -61,26 +63,7 @@ def load_arkit() -> list[dict]:
 
 
 def overlap_matrix(frames: list[dict]) -> np.ndarray:
-    n = len(frames)
-    w, h = frames[0]["wh"]
-    u, v = np.meshgrid(np.linspace(0.05, 0.95, 12) * w, np.linspace(0.05, 0.95, 9) * h)
-    uv = np.c_[u.ravel(), v.ravel()]
-    world = []
-    for f in frames:
-        K = f["K"]
-        pc = np.c_[(uv[:, 0] - K[0, 2]) / K[0, 0], (uv[:, 1] - K[1, 2]) / K[1, 1], np.ones(len(uv))] * ASSUMED_DEPTH_M
-        world.append(pc @ f["c2w"][:3, :3].T + f["c2w"][:3, 3])
-    M = np.ones((n, n))
-    for j, g in enumerate(frames):
-        R, t, K = g["c2w"][:3, :3], g["c2w"][:3, 3], g["K"]
-        for i in range(n):
-            if i == j:
-                continue
-            pc = (world[i] - t) @ R
-            z = pc[:, 2]
-            x, y = pc[:, 0] / np.maximum(z, 1e-6) * K[0, 0] + K[0, 2], pc[:, 1] / np.maximum(z, 1e-6) * K[1, 1] + K[1, 2]
-            M[i, j] = float(((z > 0.1) & (x >= 0) & (x < w) & (y >= 0) & (y < h)).mean())
-    return np.minimum(M, M.T)
+    return _overlap(np.array([f["c2w"] for f in frames]), np.array([f["K"] for f in frames]), frames[0]["wh"], ASSUMED_DEPTH_M)
 
 
 def up_axis(frames: list[dict]) -> np.ndarray:
@@ -88,37 +71,6 @@ def up_axis(frames: list[dict]) -> np.ndarray:
     ax = [np.mean([f["c2w"][:3, k] for f in frames], axis=0) for k in (0, 1)]
     a = ax[int(np.argmax([np.linalg.norm(x) for x in ax]))]
     return a / np.linalg.norm(a)
-
-
-def chain(M: np.ndarray, theta: float) -> list[int]:
-    """先頭から順に、前に選んだコマとの重なりが theta 以上で連続している範囲のいちばん先を選ぶ（範囲が無ければ次のコマ）。
-    範囲を連続に限るのは、部屋を一周すると終わりのコマが始めのコマと同じ所を見るため（限らないと、途中を飛ばして終わりへ跳ぶ）。"""
-    n, sel = len(M), [0]
-    while sel[-1] < n - 1:
-        last = sel[-1]
-        k = last + 1
-        while k + 1 < n and M[last, k + 1] >= theta:
-            k += 1
-        window = list(range(last + 1, k + 1))
-        sel.append(window[-1])
-    return sel
-
-
-def fit_count(M: np.ndarray, n: int) -> tuple[list[int], float]:
-    """n 枚以内で選べる最大のしきい値（＝隣どうしの重なりの最小をできるだけ大きくする）を探し、足りない枚数は、
-    隣どうしの重なりがいちばん小さい間へ 1 枚ずつ足す。"""
-    best = None
-    # 部屋一周を 16 枚にすると、隣どうしの重なりはかなり小さくなる（TUM で等間隔だと 0 の所もある）ので、小さい値から探す
-    for theta in np.r_[np.linspace(0.002, 0.05, 49), np.linspace(0.055, 0.95, 180)]:
-        s = chain(M, theta)
-        if len(s) <= n:
-            best = (s, float(theta))
-    s = list(best[0])
-    while len(s) < n:
-        gaps = [(M[a, b], i) for i, (a, b) in enumerate(zip(s, s[1:])) if b - a > 1]
-        _, i = min(gaps)
-        s.insert(i + 1, (s[i] + s[i + 1]) // 2)
-    return s, best[1]
 
 
 def select(frames: list[dict], how: str, n: int = N) -> dict:

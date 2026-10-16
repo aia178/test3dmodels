@@ -477,6 +477,7 @@ export function qualityReason(reasons: string[]): string {
   if (reasons.includes('disagreement')) parts.push('同じ場所の位置が、写真によって食い違っている');
   if (reasons.includes('stitch')) parts.push('範囲に分けて復元した結果のつなぎ目が、うまく合っていない');
   if (reasons.includes('focal')) parts.push('写真ごとに見え方の推定がばらついている（近すぎる・物の一部しか写っていない写真があると起きやすい）');
+  if (reasons.includes('ar_scale')) parts.push('スマホの AR の位置を使えた区間で、カメラがあまり横に動いていない（形はそろっても、大きさの手がかりが弱い。1 か所測ると確実）');
   return `${parts.join('。')}。このような復元は、実測と比べたとき 1 割前後ずれることがありました。`;
 }
 

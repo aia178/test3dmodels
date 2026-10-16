@@ -231,3 +231,10 @@ def test_capture_quality_flags_disagreeing_photos():
     assert bad["level"] == "poor" and "disagreement" in bad["reasons"]
     wide = capture_quality(raw_of([0, 0, 0], f=(280, 280, 400)))
     assert wide["level"] == "poor" and wide["reasons"] == ["focal"]
+    # AR の位置を使った区間でカメラがあまり動いていない: 形がそろっていても、大きさは要確認
+    r = raw_of([0, 0, 0]); r["meta"] = {"pose_check": {"status": "partial", "extent_m": 0.17, "scale_cue": "weak"}}
+    ar = capture_quality(r)
+    assert ar["level"] == "poor" and ar["reasons"] == ["ar_scale"] and ar["ar"]["extent_m"] == 0.17
+    # 内部パラメータの無い記録（AR の深度を重ねた取り込み）でも落ちない
+    r = raw_of([0, 0, 0]); del r["intrinsics"]
+    assert capture_quality(r)["focal_ratio"] is None
