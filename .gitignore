@@ -1,0 +1,18 @@
+node_modules/
+dist/
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.local
+# 利用者の室内写真・復元結果・重みはリポジトリに入れない
+server/data/
+experiments/data/
+experiments/out/
+*.pth
+*.safetensors
+# 自宅の写真を含む（公開する場合は中身を確認してから外す）
+docs/img/
+# 発表用の部屋ファイル（自宅の復元結果を含む）
+demo/
+experiments/ext/

@@ -1,0 +1,6 @@
+.gradle/
+build/
+app/build/
+# PC ごとに違う設定（SDK の場所）は入れない
+local.properties
+*.apk
