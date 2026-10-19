@@ -4,6 +4,7 @@ import { judgeLayout, qualityReason, roomTolerance } from './judge';
 import { convexRelation, convexVsOutline, footprint, frontNormal, rotY, signedArea, v } from './geom';
 import { buildPassageGrid, widestPath } from './passage';
 import { fmtCm, parseCm } from './units';
+import { newRoomBase } from './room';
 
 // 4m × 3m の部屋。右下の角に 30cm × 40cm の柱の出っ張りがある（輪郭の凹み）。
 function room(over: Partial<Room> = {}): Room {
@@ -223,5 +224,15 @@ describe('qualityReason', () => {
     const s = qualityReason(['ar_scale']);
     expect(s).toContain('大きさの手がかりが弱い');
     expect(qualityReason(['overlap'])).not.toContain('AR');
+  });
+});
+
+describe('印刷マーカーで縮尺を合わせた部屋の誤差の見込み', () => {
+  it('実測の検証が無ければ、いちばん長い辺の 3%（最低 5cm）を見込み、根拠にマーカーと書く', () => {
+    const r = { ...newRoomBase('r', 'r', '', 'viewing'), source: 'photo' as const, outline: [v(0, 0), v(4, 0), v(4, 3), v(0, 3)],
+      scale: { factor: 0.95, status: 'marker' as const } };
+    const t = roomTolerance(r);
+    expect(t.tol).toBeCloseTo(0.12);
+    expect(t.basis).toContain('印刷マーカー');
   });
 });

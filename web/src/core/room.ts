@@ -40,10 +40,25 @@ export interface JobRoomLike {
   views?: { n: number; w: number; h: number }[];
   capture_quality?: { level: 'good' | 'poor'; reasons: string[]; disagreement_mm: number | null; overlap: number; n_photos: number; chunks?: number };
   surfaces?: { walls: { edge: number; file: string; coverage: number }[]; floor: { file: string; coverage: number; bbox: [number, number, number, number] } | null };
+  /** 写真に写った印刷マーカーから出した、部屋に掛ける倍率（サーバーの roomfit.marker_scale） */
+  marker_scale?: { factor: number | null; n: number; spread_pct?: number; size_m: number };
 }
 
-/** 写真からの復元結果を取り込む。人が確認・入力した設備や測定は消さない。 */
+/** マーカーの倍率を当てる条件: 2 か所以上（別の写真か別のマーカー）で測れて、ばらつきが小さいこと。1 か所だけだと外れに気づけない。 */
+export const MARKER_MIN_N = 2;
+export const MARKER_MAX_SPREAD_PCT = 6;
+
+/** 写真からの復元結果を取り込む。人が確認・入力した設備や測定は消さない。
+ * 写真に印刷マーカーが写っていて、条件（MARKER_MIN_N・MARKER_MAX_SPREAD_PCT）を満たせば、その倍率で部屋の大きさを合わせる。 */
 export function applyJobResult(room: Room, jobId: string, jr: JobRoomLike, newId: () => string): Room {
+  const base = applyJobGeometry(room, jobId, jr, newId);
+  const ms = jr.marker_scale;
+  if (!ms || ms.factor == null || ms.n < MARKER_MIN_N || (ms.spread_pct ?? 0) > MARKER_MAX_SPREAD_PCT) return base;
+  const scaled = applyScale(base, ms.factor, `写真に写した印刷マーカー（一辺 ${Math.round(ms.size_m * 1000) / 10}cm、${ms.n} か所）で縮尺を合わせた`);
+  return { ...scaled, scale: { ...scaled.scale, status: 'marker' } };
+}
+
+function applyJobGeometry(room: Room, jobId: string, jr: JobRoomLike, newId: () => string): Room {
   const outline = jr.outline.map(([x, z]) => v(x, z));
   if (signedArea(outline) < 0) throw new Error('復元結果の輪郭の向きが想定と違います。');
   const obstacles: Obstacle[] = jr.obstacles.map((o) => ({

@@ -18,6 +18,9 @@ export const POOR_UNCALIBRATED_ERROR = 0.15;
 export const POOR_CALIBRATED_ERROR = 0.08;
 /** 要注意のうち、写真ごとの見え方の推定がばらついた復元（理由に focal を含む）。実測との比較で、1 か所合わせてもほかが 18% 合わなかった。 */
 export const SEVERE_ERROR = 0.2;
+/** 印刷マーカーで縮尺を合わせた部屋で見込む誤差（いちばん長い辺に対する割合）。マーカーでの精度は実物でまだ確かめていないので、
+ *  実測 1 か所で合わせた場合（5cm）と推定のまま（6%）の間の仮の値。実物での結果が出たら見直す（docs/検証記録.md）。 */
+export const MARKER_SCALE_ERROR = 0.03;
 
 /** 人の体が通る高さ。これより上にある物（吊り棚・梁）は通路をふさがないとみなす。 */
 const BODY_HEIGHT = 1.9;
@@ -31,7 +34,7 @@ export function roomTolerance(room: Room): { tol: number; basis: string } {
   const errs = room.measurements
     .filter((m) => m.role === 'validation')
     .map((m) => Math.abs(measurementLength(m) - m.measuredM));
-  if (room.scale.status === 'calibrated' && errs.length >= 1) {
+  if ((room.scale.status === 'calibrated' || room.scale.status === 'marker') && errs.length >= 1) {
     const worst = Math.max(...errs);
     const tol = Math.max(0.02, worst);
     return {
@@ -54,6 +57,10 @@ export function roomTolerance(room: Room): { tol: number; basis: string } {
     }
     if (stitched) { const t = Math.max(0.05, POOR_CALIBRATED_ERROR * maxDim); return { tol: t, basis: stitchedBasis(t) }; }
     return { tol: 0.05, basis: '縮尺は1か所で合わせましたが、別の場所での検証がまだありません。仮に 5cm の誤差を見込んでいます。' };
+  }
+  if (room.scale.status === 'marker') {
+    const t = poor ? Math.max(0.05, (severe ? SEVERE_ERROR : POOR_CALIBRATED_ERROR) * maxDim) : Math.max(0.05, (stitched ? POOR_CALIBRATED_ERROR : MARKER_SCALE_ERROR) * maxDim);
+    return { tol: t, basis: `縮尺は写真に写した印刷マーカーで合わせました。マーカーでの縮尺合わせの精度はまだ実物で確かめていないため、${fmtCm(t)} の誤差を見込んでいます。メジャーで 1 か所測って記録すると、見込む誤差を実測に基づいて決められます。` };
   }
   // 推定の縮尺のずれは長さに比例する。実測との比較（2026-10-12・1 部屋・4 か所）では 4〜7% 大きく出た。
   // 例数が少ないので補正はせず、部屋のいちばん長い辺の 6% を誤差として見込む（docs/検証記録.md §8）。

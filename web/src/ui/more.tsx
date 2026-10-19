@@ -68,7 +68,7 @@ export function Compare() {
             {row('広さ', (c) => `約 ${floorArea(c.r).toFixed(1)}㎡`)}
             {row('天井高', (c) => (c.r.ceiling.height ? `${fmtCm(c.r.ceiling.height)}${c.r.ceiling.status === 'observed' ? '（未確認）' : ''}` : '未確認'))}
             {row('作り方', (c) => (c.r.source === 'photo' ? '写真から復元' : '寸法入力'))}
-            {row('縮尺', (c) => ({ model_estimate: '未確認（推定のまま）', calibrated: '実測で合わせた', manual: '寸法入力' }[c.r.scale.status]))}
+            {row('縮尺', (c) => ({ model_estimate: '未確認（推定のまま）', calibrated: '実測で合わせた', marker: '印刷マーカーで合わせた', manual: '寸法入力' }[c.r.scale.status]))}
             {row('見込んでいる誤差', (c) => fmtCm(c.tol.tol))}
             {row('形の分からない壁', (c) => `${c.r.edges.filter((e) => e.status === 'unobserved').length} か所`)}
             {row('柱・梁・出っ張り', (c) => `${c.r.obstacles.length} 個`)}

@@ -291,18 +291,19 @@ def save_surfaces(surf: dict, out_dir: Path) -> dict:
     return info
 
 
-def add_surfaces(raw: dict, room: dict, job_dir: Path) -> None:
-    """壁と床に元の写真を貼った画像を作り、room.json に "surfaces" として書き足す（roomfit.textures）。"""
+def job_views(raw: dict, room: dict, job_dir: Path) -> list | None:
+    """元の写真と、写真ごとに各画素が見ている 3D の点（部屋座標）をそろえる（壁の写真貼りとマーカーの縮尺合わせで使う）。
+    元の写真が無い・数が合わないなどで作れなければ None。"""
     from PIL import Image, ImageOps
 
-    from .textures import ViewData, make_surfaces, photo_mapping
+    from .textures import ViewData, photo_mapping
 
     if "valid_bits" not in raw:
-        return
+        return None
     ups = sorted((job_dir / "upload").iterdir()) if (job_dir / "upload").exists() else []
     pres = sorted((job_dir / "images").glob("*.jpg"))
     if not ups or len(ups) != len(raw["cam2world"]) or len(pres) != len(ups):
-        return
+        return None
     T = np.array(room["T_room_from_world"])
     views = []
     for v, (mask, xyz) in enumerate(view_grids(raw)):
@@ -313,8 +314,32 @@ def add_surfaces(raw: dict, room: dict, job_dir: Path) -> None:
             pw = im.size
         views.append(ViewData(cam2room=T @ raw["cam2world"][v], K=raw["intrinsics"][v], grid_room=grid, photo=photo,
                               to_photo=photo_mapping(mask.shape, pw, (photo.shape[1], photo.shape[0]))))
+    return views
+
+
+def add_surfaces(raw: dict, room: dict, job_dir: Path, views: list | None = None) -> None:
+    """壁と床に元の写真を貼った画像を作り、room.json に "surfaces" として書き足す（roomfit.textures）。"""
+    from .textures import make_surfaces
+
+    views = views if views is not None else job_views(raw, room, job_dir)
+    if views is None:
+        return
     info = save_surfaces(make_surfaces(room["outline"], room["edge_status"], room["ceiling_height"], views), job_dir)
     room["surfaces"] = info
+    (job_dir / "room.json").write_text(json.dumps(room, ensure_ascii=False), encoding="utf-8")
+
+
+def add_marker_scale(room: dict, job_dir: Path, views: list | None) -> None:
+    """写真に印刷マーカーが写っていれば、部屋の大きさを合わせる倍率を room.json に "marker_scale" として書き足す
+    （roomfit.marker_scale）。部屋の形そのものは変えない（倍率を当てるかは画面側で決め、記録に残す）。"""
+    from .marker_scale import estimate_scale
+
+    if views is None:
+        return
+    ms = estimate_scale(views)
+    if ms is None:
+        return
+    room["marker_scale"] = ms
     (job_dir / "room.json").write_text(json.dumps(room, ensure_ascii=False), encoding="utf-8")
 
 
@@ -340,8 +365,17 @@ def main(job_dir: Path) -> int:
             save_raw(raw, raw_path)
         write_status(job_dir, stage="structuring")
         room = structure_from_raw(raw, job_dir)
+        views = None
+        try:
+            views = job_views(raw, room, job_dir)
+        except Exception:
+            (job_dir / "surfaces_error.log").write_text(traceback.format_exc(), encoding="utf-8")
+        try:   # 印刷マーカーでの縮尺合わせ（任意）。失敗しても復元そのものは成功として扱う
+            add_marker_scale(room, job_dir, views)
+        except Exception:
+            (job_dir / "marker_error.log").write_text(traceback.format_exc(), encoding="utf-8")
         try:   # 見た目のための画像。失敗しても復元そのものは成功として扱う（点の表示は使える）
-            add_surfaces(raw, room, job_dir)
+            add_surfaces(raw, room, job_dir, views)
         except Exception:
             (job_dir / "surfaces_error.log").write_text(traceback.format_exc(), encoding="utf-8")
         write_status(job_dir, stage="done", seconds=round(time.time() - t0, 1))

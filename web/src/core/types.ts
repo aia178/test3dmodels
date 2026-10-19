@@ -78,8 +78,8 @@ export interface Room {
   obstacles: Obstacle[];
   fixtures: Fixture[];
   measurements: Measurement[];
-  /** model_estimate: 復元モデルの推定のまま / calibrated: 実測1か所で合わせた / manual: 寸法入力 */
-  scale: { factor: number; status: 'model_estimate' | 'calibrated' | 'manual' };
+  /** model_estimate: 復元モデルの推定のまま / calibrated: 実測1か所で合わせた / marker: 写真に写した印刷マーカーで合わせた / manual: 寸法入力 */
+  scale: { factor: number; status: 'model_estimate' | 'calibrated' | 'marker' | 'manual' };
   /** 形・縮尺が変わるたびに増やす。判定結果はこの版に結び付く。 */
   geometryVersion: number;
   job?: { id: string; model: string; nPhotos: number };

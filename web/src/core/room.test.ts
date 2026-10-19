@@ -188,3 +188,24 @@ describe('壁・床に写真を貼った画像', () => {
     expect(surfacesUsable(r)).toBe(false);
   });
 });
+
+describe('印刷マーカーでの縮尺合わせ', () => {
+  const job = (marker_scale?: { factor: number | null; n: number; spread_pct?: number; size_m: number }) => applyJobResult(newRoomBase('r', 'r', '', 'viewing'), 'job', {
+    outline: [[0, 0], [4.2, 0], [4.2, 3.15], [0, 3.15]], edge_status: ['observed', 'observed', 'observed', 'observed'],
+    ceiling_height: 2.52, ceiling_observed: true, obstacles: [], meta: { model: 'm', n_views: 8 }, marker_scale,
+  }, id);
+
+  it('2 か所以上でそろって測れたら、その倍率で部屋全体を合わせ、マーカーで合わせたと記録する', () => {
+    const r = job({ factor: 1 / 1.05, n: 3, spread_pct: 2.1, size_m: 0.15 });
+    expect(r.scale.status).toBe('marker');
+    expect(r.outline[1].x).toBeCloseTo(4.0);
+    expect(r.ceiling.height).toBeCloseTo(2.4);
+  });
+
+  it('1 か所だけ・ばらつきが大きい・測れなかったときは当てない', () => {
+    expect(job({ factor: 0.95, n: 1, spread_pct: 0, size_m: 0.15 }).scale.status).toBe('model_estimate');
+    expect(job({ factor: 0.95, n: 4, spread_pct: 12, size_m: 0.15 }).scale.status).toBe('model_estimate');
+    expect(job({ factor: null, n: 0, size_m: 0.15 }).scale.status).toBe('model_estimate');
+    expect(job().outline[1].x).toBeCloseTo(4.2);
+  });
+});
