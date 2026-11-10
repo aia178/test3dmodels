@@ -57,3 +57,5 @@ android/**/build/
 
 # 共有された実データの置き場（自宅の写真を含む）
 private_data/
+roomfit_private_data/
+roomfit_private_data*
