@@ -170,6 +170,8 @@ export async function importRoomFile(text: string): Promise<Room> {
     jobResult?: JobRoomLike;
     /** 復元結果のファイルに、検証用の測定を最初から入れておく場合（デモ・検証用） */
     measurements?: Room['measurements'];
+    /** 復元結果のファイルに、設備（ドア・コンセントなど）を最初から入れておく場合（デモ用）。位置は復元のままの縮尺で書く */
+    fixtures?: Room['fixtures'];
     views?: { n: number; w: number; h: number; jpgB64: string; xyzB64: string }[];
     /** 壁・床に写真を貼った画像（ファイル名 → JPEG の base64） */
     surfacesB64?: Record<string, string>;
@@ -182,6 +184,8 @@ export async function importRoomFile(text: string): Promise<Room> {
     // 復元の結果そのもの。サーバーの復元が終わったときと同じ処理で部屋にする
     if (!data.jobResult) throw new Error('復元結果が入っていません。');
     room = applyJobResult(newRoomBase(id, data.name || '読み込んだ部屋', '', 'current'), 'file', data.jobResult, uid);
+    // 設備は縮尺合わせの前に入れる（縮尺合わせで位置が一緒に伸び縮みする。幅・高さは実寸なので変えない）
+    if (Array.isArray(data.fixtures)) room = { ...room, fixtures: data.fixtures };
     // 縮尺合わせの測定は最後に入れる（アプリで測ったときと同じ処理で、それまでの測定も含めて部屋全体の大きさが合わせ直される）
     const ms = Array.isArray(data.measurements) ? [...data.measurements].sort((p, q) => (p.role === 'calibration' ? 1 : 0) - (q.role === 'calibration' ? 1 : 0)) : [];
     for (const m of ms) room = addMeasurement(room, m);
@@ -206,7 +210,8 @@ export async function importRoomFile(text: string): Promise<Room> {
   room = { ...room, hasPointCloud: !!cloud, views: views.map((v) => ({ n: v.n, w: v.w, h: v.h })), ...(haveAllSurfaces ? {} : { surfaces: undefined }) };
   await d.put('rooms', room);
   for (const f of data.furniture ?? []) if (!(await d.get('furniture', f.id))) await d.put('furniture', f);
-  for (const l of data.kind === 'room' ? data.layouts ?? [] : []) await d.put('layouts', { ...l, id: uid(), roomId: id });
+  // 配置案の位置は、読み込んだ後の部屋（縮尺合わせ後）の座標で書いてあるものとして、そのまま使う
+  for (const l of data.layouts ?? []) await d.put('layouts', { ...l, id: uid(), roomId: id });
   notify();
   return room;
 }

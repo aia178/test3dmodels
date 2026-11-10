@@ -70,7 +70,7 @@ class JobStore:
             up = self.job_dir(job_id) / "upload"
             up.mkdir(parents=True)
             for i, (name, data) in enumerate(files):
-                ext = Path(name).suffix.lower() if Path(name).suffix.lower() in (".jpg", ".jpeg", ".png", ".webp") else ".jpg"
+                ext = Path(name).suffix.lower() if Path(name).suffix.lower() in (".jpg", ".jpeg", ".png", ".webp", ".zip") else ".jpg"
                 (up / f"{i:03d}{ext}").write_bytes(data)
             db.execute(
                 "INSERT INTO jobs(id, owner, state, input_hash, pipeline, n_photos, created_at) VALUES(?,?,?,?,?,?,?)",

@@ -4,6 +4,7 @@ import json
 import os
 import sys
 import time
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -132,3 +133,24 @@ def test_product_search_reports_unconfigured(client, monkeypatch):
     assert r.status_code == 503 and "未設定" in r.json()["detail"]
     assert json.dumps(c.get("/api/health").json())  # 秘密情報を含まない形で返る
     assert "RAKUTEN" not in json.dumps(c.get("/api/health").json()) and os.environ.get("RAKUTEN_APP_ID") is None
+
+
+def _capture_zip(n_frames=3) -> bytes:
+    b = io.BytesIO()
+    with zipfile.ZipFile(b, "w") as z:
+        for i in range(n_frames):
+            z.writestr(f"rec/{i:03d}.json", json.dumps({"id": f"{i:03d}"}))
+            z.writestr(f"rec/{i:03d}.jpg", _jpg())
+    return b.getvalue()
+
+
+def test_capture_upload_runs_and_rejects_bad_archives(client):
+    c, app_mod = client
+    r = c.post("/api/jobs/capture", files={"capture": ("rec.zip", _capture_zip(), "application/zip")}, headers={"X-Owner": OWNER_A})
+    assert r.status_code == 200 and r.json()["frames"] == 3
+    _wait(c, r.json()["id"], OWNER_A, {"done"})
+    assert (app_mod.store.job_dir(r.json()["id"]) / "upload" / "000.zip").exists()
+    too_few = c.post("/api/jobs/capture", files={"capture": ("rec.zip", _capture_zip(2), "application/zip")}, headers={"X-Owner": OWNER_A})
+    assert too_few.status_code == 400
+    broken = c.post("/api/jobs/capture", files={"capture": ("rec.zip", b"not a zip", "application/zip")}, headers={"X-Owner": OWNER_A})
+    assert broken.status_code == 400

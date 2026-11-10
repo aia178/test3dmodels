@@ -11,6 +11,7 @@ import json
 import os
 import urllib.parse
 import urllib.request
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -26,6 +27,7 @@ DATA_DIR = Path(os.environ.get("ROOMFIT_DATA_DIR", ROOT / "data"))
 WEB_DIST = Path(os.environ.get("ROOMFIT_WEB_DIST", ROOT.parent / "web" / "dist"))
 MIN_PHOTOS, MAX_PHOTOS = 3, int(os.environ.get("ROOMFIT_MAX_PHOTOS", "40"))
 MAX_PHOTO_BYTES = 25 * 1024 * 1024
+MAX_CAPTURE_BYTES = 400 * 1024 * 1024
 
 app = FastAPI(title="RoomFit", docs_url="/api/docs", openapi_url="/api/openapi.json")
 store = JobStore(DATA_DIR)
@@ -94,6 +96,28 @@ async def create_job(photos: list[UploadFile] = File(...), x_owner: str | None =
         raise HTTPException(400, {"message": "使えない写真があります。外してからもう一度お試しください。", "files": broken})
     job_id, reused = store.create(owner, files)
     return {"id": job_id, "reused": reused}
+
+
+@app.post("/api/jobs/capture")
+async def create_capture_job(capture: UploadFile = File(...), x_owner: str | None = Header(default=None)):
+    """撮影アプリ（ARCore）の記録フォルダを zip にしたもの（NNN.jpg / NNN.json）を受け付ける。AR の位置を入力に使う（roomfit.ar_views）。"""
+    owner = _owner(x_owner)
+    ok, why = _recon_available()
+    if not ok:
+        raise HTTPException(503, why)
+    data = await capture.read()
+    if len(data) > MAX_CAPTURE_BYTES:
+        raise HTTPException(400, "記録が大きすぎます。1 回の記録だけを送ってください。")
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            names = {Path(n).name for n in z.namelist()}
+    except zipfile.BadZipFile:
+        raise HTTPException(400, "記録を zip として開けません。")
+    n_frames = sum(1 for n in names if n.endswith(".json") and n[:3].isdigit() and n.replace(".json", ".jpg") in names)
+    if n_frames < MIN_PHOTOS:
+        raise HTTPException(400, f"写真のある場面が {MIN_PHOTOS} 枚以上必要です（現在 {n_frames} 枚）。")
+    job_id, reused = store.create(owner, [("capture.zip", data)])
+    return {"id": job_id, "reused": reused, "frames": n_frames}
 
 
 def _job_or_404(owner: str, job_id: str) -> dict:

@@ -136,6 +136,16 @@ def test_unphotographed_wall_is_unobserved_not_missing():
     assert res.edge_status.count("observed") >= 5
 
 
+def test_corner_shot_from_further_back_than_the_nearest_floor_seen():
+    """1 つの角を 2m ほど離れて撮ると、足もとの床は写らず、カメラは復元できた点の範囲の外に立つ（2026-10-21 の自宅の記録）。"""
+    X, Y, Z = np.eye(3)
+    pts = np.concatenate([_plane(np.zeros(3), X, Z, 1.2, 1.2), _plane(np.zeros(3), X, Y, 1.5, 2.4), _plane(np.zeros(3), Z, Y, 1.5, 2.4)])
+    pts = pts + RNG.normal(0, 0.004, pts.shape)
+    pw, poses = to_world(pts, np.array([[2.0, 1.4, 2.0], [2.3, 1.4, 1.6], [1.6, 1.4, 2.3]]))
+    res = build_room_structure(pw, poses, _cam_index(pw, poses))
+    assert res.edge_status.count("observed") >= 2
+
+
 def test_small_step_below_tolerance_is_merged_but_pillar_kept():
     v = np.array([[0, 0], [2, 0], [2, 0.02], [4, 0.02], [4, 1], [3.7, 1], [3.7, 1.4], [4, 1.4], [4, 3], [0, 3]], float)
     out = simplify_rectilinear(v, tol=0.04, min_edge=0.05)

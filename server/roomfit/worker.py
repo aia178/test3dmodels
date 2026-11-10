@@ -13,6 +13,7 @@ from pathlib import Path
 
 import numpy as np
 
+from .arcore_import import CaptureError
 from .structure import StructureError, StructureParams, build_room_structure
 
 CLOUD_MAX_POINTS = 600_000
@@ -241,12 +242,37 @@ def structure_from_raw(raw: dict, job_dir: Path) -> dict:
         "cloud_points": int(len(cp)),
         "views": export_views(view_grids(raw), raw["view_images"], T, job_dir) if "valid_bits" in raw and "view_images" in raw else [],
         "scale_status": "model_estimate",
+        "scale_source": scale_source(raw["meta"]),
         "capture_quality": capture_quality(raw),
         "diagnostics": {**res.diagnostics, **color_diag},
         "meta": raw["meta"],
     }
     (job_dir / "room.json").write_text(json.dumps(room, ensure_ascii=False), encoding="utf-8")
     return room
+
+
+def scale_source(meta: dict) -> str:
+    """大きさの根拠。"ar_pose": 検算に通った AR の位置を渡し、その区間でカメラが十分に動いた（§19）。
+    "ar_pose_weak": AR の位置は渡したが動きが小さい（形はそろうが大きさは要確認）。"model": 写真だけ（部屋により ±5%、§22）。"""
+    posed = (meta.get("ar_frames") or {}).get("posed") or []
+    if not any(posed):
+        return "model"
+    return "ar_pose_weak" if (meta.get("pose_check") or {}).get("scale_cue") == "weak" else "ar_pose"
+
+
+def run_ar_capture(zip_path: Path, job_dir: Path) -> dict:
+    """撮影アプリの記録（zip）から復元する。写真と内部パラメータは全コマ、AR の位置は検算に通った区間のコマにだけ渡す（roomfit.ar_views）。"""
+    from .ar_views import build_views, extract_capture, plan_views
+    from .reconstruct import run_mapanything
+
+    folder = extract_capture(zip_path, job_dir / "capture")
+    plan = plan_views(folder)
+    paths, views = build_views(folder, job_dir / "images", plan)
+    write_status(job_dir, stage="loading_model")
+    raw = run_mapanything(paths, on_stage=lambda s: write_status(job_dir, stage=s), views=views)
+    raw["meta"]["pose_check"] = plan["pose_check"]
+    raw["meta"]["ar_frames"] = {"ids": plan["ids"], "posed": plan["posed"]}
+    return raw
 
 
 def run_chunked(imgs: list[Path], chunks: list[list[int]], job_dir: Path) -> dict:
@@ -355,13 +381,16 @@ def main(job_dir: Path) -> int:
         else:
             write_status(job_dir, stage="preprocessing")
             src = sorted((job_dir / "upload").iterdir())
-            imgs = preprocess_images(src, job_dir / "images")
-            write_status(job_dir, stage="loading_model")  # ライブラリの読み込みだけでも時間がかかる
-            chunks = plan_chunks(len(imgs))
-            if len(chunks) == 1:
-                raw = run_mapanything(imgs, on_stage=lambda s: write_status(job_dir, stage=s))
+            if len(src) == 1 and src[0].suffix == ".zip":
+                raw = run_ar_capture(src[0], job_dir)
             else:
-                raw = run_chunked(imgs, chunks, job_dir)
+                imgs = preprocess_images(src, job_dir / "images")
+                write_status(job_dir, stage="loading_model")  # ライブラリの読み込みだけでも時間がかかる
+                chunks = plan_chunks(len(imgs))
+                if len(chunks) == 1:
+                    raw = run_mapanything(imgs, on_stage=lambda s: write_status(job_dir, stage=s))
+                else:
+                    raw = run_chunked(imgs, chunks, job_dir)
             save_raw(raw, raw_path)
         write_status(job_dir, stage="structuring")
         room = structure_from_raw(raw, job_dir)
@@ -380,7 +409,7 @@ def main(job_dir: Path) -> int:
             (job_dir / "surfaces_error.log").write_text(traceback.format_exc(), encoding="utf-8")
         write_status(job_dir, stage="done", seconds=round(time.time() - t0, 1))
         return 0
-    except StructureError as e:
+    except (StructureError, CaptureError) as e:
         write_status(job_dir, stage="failed", error_code=e.code, error_message=e.message)
         return 2
     except MemoryError:

@@ -16,3 +16,41 @@ docs/img/
 # 発表用の部屋ファイル（自宅の復元結果を含む）
 demo/
 experiments/ext/
+
+# --- 追加分 ---
+# 環境変数ファイル（.env.example だけ共有する）
+.env.*
+!.env.example
+# テスト・エディタ・OS のキャッシュ
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+# Claude Code の個人設定
+.claude/settings.local.json
+# 重いデータ（写真・動画・点群・メッシュ・モデル重み・圧縮ファイル）
+*.mp4
+*.mov
+*.avi
+*.heic
+*.ply
+*.glb
+*.npz
+*.npy
+*.pt
+*.ckpt
+*.onnx
+*.bin
+*.zip
+*.7z
+*.tar
+*.tar.gz
+*.apk
+*.aab
+# android のビルド成果物
+android/local.properties
+android/.gradle/
+android/**/build/

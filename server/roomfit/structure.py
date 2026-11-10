@@ -407,8 +407,9 @@ def build_room_structure(points_world: np.ndarray, cam2world: np.ndarray, point_
     Rfull = Ryaw @ A3 @ R  # 回転と、必要なら小さなせん断（鏡映は含まない）
 
     xz = pts[:, [0, 2]]
-    lo = np.percentile(xz, 0.2, axis=0) - 0.3
-    hi = np.percentile(xz, 99.8, axis=0) + 0.3
+    # 離れて撮ると足もとの床は写らないので、カメラも範囲に入れる（入れないと、カメラのまわりの空間を探せない）
+    lo = np.minimum(np.percentile(xz, 0.2, axis=0), cams[:, [0, 2]].min(axis=0)) - 0.3
+    hi = np.maximum(np.percentile(xz, 99.8, axis=0), cams[:, [0, 2]].max(axis=0)) + 0.3
     shape = tuple(np.ceil((hi - lo) / p.cell).astype(int))
     if shape[0] * shape[1] > 4_000_000:
         raise StructureError("too_large", "復元範囲が広すぎます。1部屋ずつ撮影してください。")

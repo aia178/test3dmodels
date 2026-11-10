@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Room } from '../core/types';
-import { applyJobResult, floorArea, newRoomBase, setManualRect } from '../core/room';
+import { applyJobResult, floorArea, newRoomBase, setManualRect, surfacesUsable } from '../core/room';
 import { qualityReason, roomTolerance } from '../core/judge';
 import * as db from '../store/db';
 import * as api from '../store/api';
@@ -453,6 +453,7 @@ export function RoomHub(props: { roomId: string }) {
           ? <Plan2D room={room} showLengths />
           : <Scene3D room={room} items={[]} selectedId={null} issue={null} issueTargets={NO_TARGETS} cloud={photoLook ? null : cloud?.pos} cloudColors={photoLook ? null : cloud?.col} showCloud={room.hasPointCloud && !photoLook} surfaces={photoLook ? surfaces : null} onSelect={noop} onMove={noop} />}
       </div>
+      {view === '3d' && !surfaces && room.surfaces && surfacesUsable(room) && <p class="muted small">壁と床の写真を読み込んでいます…（数秒かかります）</p>}
       {view === '3d' && surfaces && (
         <div class="seg hub-seg small-seg">
           <button class={look === 'photo' ? 'on' : ''} aria-pressed={look === 'photo'} onClick={() => setLook('photo')}>写真で表示</button>
