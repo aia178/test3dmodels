@@ -1,0 +1,30 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'jp.roomfit.capture'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'jp.roomfit.capture'
+        minSdk 24
+        targetSdk 36
+        versionCode 1
+        versionName '0.1.0'
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+}
+
+dependencies {
+    // ARCore。端末側の「Google Play Services for AR」と組み合わせて動く。
+    implementation 'com.google.ar:core:1.48.0'
+}

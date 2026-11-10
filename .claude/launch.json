@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "roomfit-server",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "--directory", "server", "uvicorn", "roomfit.app:app", "--host", "127.0.0.1", "--port", "8787"],
+      "port": 8787
+    },
+    {
+      "name": "roomfit-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "web", "run", "dev"],
+      "port": 5173
+    }
+  ]
+}
